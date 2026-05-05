@@ -23,11 +23,11 @@ class EURUSDSessionSweepFVGStrategy(Strategy):
     bias_timeframe: str = 'M15'
     execution_timeframe: str = 'M5'
     asia_start_hour_utc: int = 0
-    asia_end_hour_utc: int = 6
+    asia_end_hour_utc: int = 8      # Extended: was 6 (Asia includes Tokyo+Sydney)
     london_start_hour_utc: int = 7
-    london_end_hour_utc: int = 11
+    london_end_hour_utc: int = 16   # Extended: was 11 (London active until close)
     new_york_start_hour_utc: int = 12
-    new_york_end_hour_utc: int = 16
+    new_york_end_hour_utc: int = 21  # Extended: was 16 (NY open to close 17:00 EDT)
     min_sweep_pips: float = 3.0
     displacement_atr_multiple: float = 1.4
     min_fvg_pips: float = 1.5

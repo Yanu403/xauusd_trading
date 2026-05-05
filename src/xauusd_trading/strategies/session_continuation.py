@@ -16,9 +16,9 @@ class SessionContinuationFVGStrategy(Strategy):
     name: str = 'session_continuation_fvg'
     execution_timeframe: str = 'M3'
     london_start_hour_utc: int = 7
-    london_end_hour_utc: int = 11
+    london_end_hour_utc: int = 16   # Extended: was 11
     new_york_start_hour_utc: int = 12
-    new_york_end_hour_utc: int = 16
+    new_york_end_hour_utc: int = 21  # Extended: was 16
     displacement_atr_multiple: float = 1.4
     min_fvg_pips: float = 1.0
     entry_expiry_bars: int = 8
