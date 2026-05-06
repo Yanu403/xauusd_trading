@@ -168,8 +168,10 @@ class EURUSDSessionSweepFVGStrategy(Strategy):
                     return candidate
         return None
 
+    fvg_search_radius: int = 6          # How far back from sweep to search for FVG (was implicit 2)
+
     def _find_fvg_zone(self, df: pd.DataFrame, mss_index: int, side: str) -> tuple[float, float] | None:
-        start = max(2, mss_index - 2)
+        start = max(2, mss_index - self.fvg_search_radius)
         for candidate in range(mss_index, start - 1, -1):
             a = df.iloc[candidate - 2]
             c = df.iloc[candidate]

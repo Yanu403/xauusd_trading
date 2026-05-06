@@ -92,8 +92,13 @@ class SessionContinuationFVGStrategy(Strategy):
                 return candidate
         return None
 
+    fvg_search_radius: int = 6          # How far back from impulse to search for FVG (was implicit 2)
+
     def _find_fvg_zone(self, df: pd.DataFrame, impulse_index: int, side: str) -> tuple[float, float] | None:
-        start = max(2, impulse_index - 2)
+        # Search for 3-candle FVG within radius bars of impulse
+        # A bullish FVG: bar[i-2].high < bar[i].low (gap up between candle A and C)
+        # A bearish FVG: bar[i-2].low > bar[i].high (gap down between candle A and C)
+        start = max(2, impulse_index - self.fvg_search_radius)
         for candidate in range(impulse_index, start - 1, -1):
             a = df.iloc[candidate - 2]
             c = df.iloc[candidate]
