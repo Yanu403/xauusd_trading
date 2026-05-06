@@ -58,8 +58,16 @@ class MT5ExecutionAdapter:
 
     def build_intent(self, signal: TradeSignal, *, account_balance: float, risk_config: RiskConfig) -> OrderIntent:
         risk_manager = RiskManager(initial_balance=account_balance, config=risk_config)
-        _, raw_size = risk_manager.size_position(entry_price=signal.entry_price, stop_loss=signal.stop_loss)
-        volume = self._normalize_volume(raw_size)
+        pip_size = float(signal.metadata.get('pip_size', 0.0001))
+        _, raw_units = risk_manager.size_position(
+            entry_price=signal.entry_price,
+            stop_loss=signal.stop_loss,
+            pip_size=pip_size,
+        )
+        # size_position() returns CONTRACT UNITS (e.g. 41,096), not lots.
+        # Must convert to lots: lots = units / lot_size
+        raw_lots = raw_units / risk_config.lot_size
+        volume = self._normalize_volume(raw_lots)
         return OrderIntent(
             symbol=self.mt5_config.symbol,
             side=signal.side,
