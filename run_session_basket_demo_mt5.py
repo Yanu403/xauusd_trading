@@ -116,41 +116,27 @@ def build_branch_specs(runtime_config: dict, mt5_configs: dict[str, MT5Config]) 
     gbpusd_spread = _resolve_spread('GBPUSD', default_pips=1.5, spread_points_per_pip=10.0)
     xauusd_spread = _resolve_spread('XAUUSD', default_pips=4.0, spread_points_per_pip=100.0)
 
-    # ── TUNED BRANCH SPECS (2026-05-05) ────────────────────────────────────
-    # Only profitable + monitor branches active. Disabled branches skipped.
-    # See: docs/final_audit_tuning_report_2026-05-05.md
+    # ── TUNED BRANCH SPECS (2026-05-06 ATR v2) ──────────────────────────
+    # Key insight: SL/TP must scale with ATR, not fixed pips.
+    # XAUUSD ATR14 ≈ 819 pips ($8.19) → stop_buffer must be 100+ pips
+    # Forex ATR14 ≈ 4-5 pips → stop_buffer 2 pips is correct
+    # See: run_basket_backtest_atr.py results (5K bars)
+    # ──────────────────────────────────────────────────────────────────────
     active_branches = runtime_config.get('active_branches', [
-        'eurusd_sweep', 'gbpusd_orb', 'eurusd_orb', 'xauusd_continuation',
+        'xauusd_continuation',  # PF=1.27, +2.98%, 59 trades (BEST)
+        'gbpusd_orb',           # PF=0.84 monitor
+        'eurusd_orb',           # PF=0.75 monitor
+        # DISABLED: eurusd_sweep (PF=0.16), gbpusd_sweep (PF=0.07)
+        # DISABLED: xauusd_orb (PF=0.80, SL too wide)
     ])
 
     branches = []
-    if 'eurusd_sweep' in active_branches:
-        branches.append(BranchSpec(
-            branch_id='eurusd_sweep',
-            symbol='EURUSD',
-            priority=1,
-            risk_per_trade=0.005,  # TUNED: was 0.01 → 0.5%
-            strategy=EURUSDSessionSweepFVGStrategy(
-                execution_timeframe='M5',
-                max_spread_pips=4.0,  # TUNED: was 1.5
-                min_sweep_pips=1.0,   # TUNED: was 2.0
-                min_fvg_pips=0.3,     # TUNED: was 1.0
-                min_asia_range_pips=2.0,  # TUNED: was 8.0
-                max_asia_range_pips=200,  # TUNED: was 80
-                sweep_lookback_bars=60,   # TUNED: was 12
-                entry_expiry_bars=24,     # TUNED: was 8
-                displacement_atr_multiple=0.7,  # TUNED: was 1.4
-                stop_buffer_pips=2.0,     # TUNED: was 0.5
-                pip_size=0.0001,
-                spread_points_per_pip=10.0,
-            ),
-        ))
     if 'gbpusd_orb' in active_branches:
         branches.append(BranchSpec(
             branch_id='gbpusd_orb',
             symbol='GBPUSD',
             priority=2,
-            risk_per_trade=0.003,  # TUNED: 0.3%
+            risk_per_trade=0.003,
             strategy=SessionORBRetestStrategy(
                 execution_timeframe='M5',
                 max_spread_pips=3.0,
@@ -187,24 +173,30 @@ def build_branch_specs(runtime_config: dict, mt5_configs: dict[str, MT5Config]) 
         branches.append(BranchSpec(
             branch_id='xauusd_continuation',
             symbol='XAUUSD',
-            priority=4,
+            priority=1,  # BEST performer
             risk_per_trade=0.003,  # TUNED: was 0.0075 → 0.3%
             strategy=SessionContinuationFVGStrategy(
                 execution_timeframe='M5',
-                pip_size=0.01,        # TUNED: was 0.1 → 0.01 (correct for HFM)
+                pip_size=0.01,
                 spread_points_per_pip=100.0,
-                max_spread_pips=10.0,  # TUNED: was 1.5
-                min_fvg_pips=0.03,     # TUNED: was 1.0
-                impulse_lookback_bars=48,  # TUNED: was 8
-                entry_expiry_bars=18,      # TUNED: was 8
+                max_spread_pips=10.0,          # TUNED: was 1.5
+                min_fvg_pips=0.03,             # TUNED: was 1.0 (XAU scale)
+                impulse_lookback_bars=48,       # TUNED: was 8
+                entry_expiry_bars=18,           # TUNED: was 8
                 displacement_atr_multiple=0.8,  # TUNED: was 1.4
-                stop_buffer_pips=30.0,     # TUNED: was 0.5
+                # KEY FIX: ATR-based stop buffer for gold
+                # Old: stop_buffer_pips=30 ($0.30) → SL 30 pips → 10016 rejection
+                # New: stop_buffer_pips=100 ($1.00) → SL avg 133 pips ($1.33)
+                # This gives SL/ATR ratio ≈ 0.16× (still conservative)
+                stop_buffer_pips=100.0,
+                rr_target=2.0,
+                max_bars_hold=48,  # Gold needs more time to reach TP
             ),
         ))
-    # DISABLED branches (not profitable on M5):
-    # - eurusd_continuation: FVG zone 1-3 pips too small for M5, 0% WR
-    # - gbpusd_sweep: PF 0.41, not profitable
-    # - gbpusd_continuation: Same FVG issue as EURUSD
+    # DISABLED branches (backtest results 2026-05-06 ATR v2):
+    # - eurusd_sweep: PF=0.16, WR=18% (was profitable at PF=1.01 with old tight params but unrealistic)
+    # - gbpusd_sweep: PF=0.07, WR=11%
+    # - xauusd_orb: PF=0.80, SL avg 467 pips too wide
 
     return branches
 
