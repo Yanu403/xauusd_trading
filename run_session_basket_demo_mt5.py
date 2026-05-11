@@ -148,6 +148,7 @@ def build_branch_specs(runtime_config: dict, mt5_configs: dict[str, MT5Config]) 
                 stop_buffer_pips=1.0,
                 pip_size=0.0001,
                 spread_points_per_pip=10.0,
+                lot_size=100_000.0,
             ),
         ))
     if 'eurusd_orb' in active_branches:
@@ -167,6 +168,7 @@ def build_branch_specs(runtime_config: dict, mt5_configs: dict[str, MT5Config]) 
                 stop_buffer_pips=1.0,
                 pip_size=0.0001,
                 spread_points_per_pip=10.0,
+                lot_size=100_000.0,
             ),
         ))
     if 'xauusd_continuation' in active_branches:

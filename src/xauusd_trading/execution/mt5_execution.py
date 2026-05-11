@@ -80,7 +80,10 @@ class MT5ExecutionAdapter:
 
         risk_manager = RiskManager(initial_balance=account_balance, config=effective_risk_config)
         pip_size = float(signal.metadata.get('pip_size', 0.0001))
-        lot_size = float(signal.metadata.get('lot_size', risk_config.lot_size))
+        symbol_hint = str(signal.metadata.get('symbol') or self.mt5_config.symbol).upper()
+        default_lot_size = 100.0 if 'XAU' in symbol_hint else 100_000.0
+        lot_size = float(signal.metadata.get('lot_size', default_lot_size))
+        risk_budget = account_balance * effective_risk_config.risk_per_trade
         _, raw_units = risk_manager.size_position(
             entry_price=signal.entry_price,
             stop_loss=signal.stop_loss,
@@ -101,7 +104,13 @@ class MT5ExecutionAdapter:
             deviation=self.execution_config.deviation,
             magic=self.execution_config.magic,
             comment=self.execution_config.comment,
-            metadata=dict(signal.metadata),
+            metadata={
+                **dict(signal.metadata),
+                'lot_size': lot_size,
+                'risk_budget': risk_budget,
+                'effective_risk_per_trade': effective_risk_config.risk_per_trade,
+                'estimated_risk_currency': volume * lot_size * abs(signal.entry_price - signal.stop_loss),
+            },
         )
 
     def decide(self, *, signal: TradeSignal | None, broker_positions: list[BrokerPosition], account_balance: float, risk_config: RiskConfig) -> ExecutionDecision:
@@ -287,6 +296,32 @@ class MT5ExecutionAdapter:
                     'tp_submitted': tp,
                 }
             adjusted_volume = self._normalize_volume(raw_adjusted_volume)
+            lot_size = float(intent.metadata.get('lot_size', 100.0 if 'XAU' in intent.symbol.upper() else 100_000.0))
+            risk_budget = float(intent.metadata.get('risk_budget', 0.0) or 0.0)
+            estimated_actual_risk = adjusted_volume * lot_size * actual_risk_distance
+            # Final live safety guard: if the order would risk materially more than
+            # the configured budget, reject instead of sending an oversized trade.
+            if risk_budget > 0 and estimated_actual_risk > risk_budget * 1.10:
+                return {
+                    'sent': False,
+                    'mode': 'LIVE',
+                    'retcode': -1,
+                    'reason': (
+                        'RISK_BUDGET_EXCEEDED: '
+                        f'estimated={estimated_actual_risk:.2f} budget={risk_budget:.2f} '
+                        f'volume={adjusted_volume:.2f} lot_size={lot_size:.0f}'
+                    ),
+                    'price': actual_price,
+                    'bid': bid,
+                    'ask': ask,
+                    'spread_price': spread_price,
+                    'volume_submitted': adjusted_volume,
+                    'sl_submitted': sl,
+                    'tp_submitted': tp,
+                    'actual_risk_distance': actual_risk_distance,
+                    'risk_budget': risk_budget,
+                    'estimated_actual_risk': estimated_actual_risk,
+                }
             if abs(adjusted_volume - intent.volume) > self.execution_config.lot_step:
                 logger.info(
                     'Volume adjusted: %.2f → %.2f (risk dist %.5f → %.5f)',
@@ -355,6 +390,9 @@ class MT5ExecutionAdapter:
                 'original_stop_loss': original_sl,
                 'original_take_profit': original_tp,
                 'actual_risk_distance': actual_risk_distance,
+                'risk_budget': risk_budget,
+                'estimated_actual_risk': estimated_actual_risk,
+                'lot_size': lot_size,
                 'rr_target_live': rr_target,
                 'stops_level_points': stops_level,
                 'freeze_level_points': freeze_level,

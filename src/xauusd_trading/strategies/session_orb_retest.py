@@ -32,6 +32,7 @@ class SessionORBRetestStrategy(Strategy):
     max_spread_pips: float = 1.5
     spread_points_per_pip: float = 10.0
     pip_size: float = 0.0001
+    lot_size: float = 100_000.0  # Forex default: 1 lot = 100,000 units. Override to 100 for XAUUSD.
     breakout_lookback_bars: int = 8
     entry_expiry_bars: int = 8
     max_bars_hold: int = 24
@@ -147,7 +148,7 @@ class SessionORBRetestStrategy(Strategy):
                 'rr_target': self.rr_target,
                 'pip_size': self.pip_size,
                 'spread_points_per_pip': self.spread_points_per_pip,
-                'lot_size': 100,  # XAUUSD: 1 lot = 100 oz
+                'lot_size': self.lot_size,
             },
         )
 
