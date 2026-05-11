@@ -66,6 +66,10 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
     iteration = 0
+    session_signals = 0
+    session_orders_filled = 0
+    session_orders_rejected = 0
+    session_telegram_sent = 0
 
     # Startup banner
     if not args.json:
@@ -91,6 +95,25 @@ def main() -> int:
         telegram_sent = int(payload.get('telegram_alerts_sent', 0))
         branch_debugs = payload.get('branch_debugs', [])
 
+        # Current-iteration broker order outcomes. These are different from
+        # strategy signal conflicts: a signal can exist, but broker can reject,
+        # or the order can fill and hit SL before next heartbeat.
+        orders_filled_now = 0
+        orders_rejected_now = 0
+        for item in per_symbol.values():
+            decision = item.get('decision', {})
+            send_result = decision.get('send_result') or {}
+            if decision.get('action') in {'OPEN', 'REVERSE'} and send_result:
+                if send_result.get('sent'):
+                    orders_filled_now += 1
+                else:
+                    orders_rejected_now += 1
+
+        session_signals += accepted_count
+        session_orders_filled += orders_filled_now
+        session_orders_rejected += orders_rejected_now
+        session_telegram_sent += telegram_sent
+
         # Build symbol info for heartbeat
         symbols_info = {}
         for symbol, item in per_symbol.items():
@@ -109,7 +132,13 @@ def main() -> int:
             'accepted_signals': accepted_count,
             'rejected_signals': rejected_count,
             'live_actions': live_actions,
+            'orders_filled_now': orders_filled_now,
+            'orders_rejected_now': orders_rejected_now,
+            'session_signals': session_signals,
+            'session_orders_filled': session_orders_filled,
+            'session_orders_rejected': session_orders_rejected,
             'telegram_alerts_sent': telegram_sent,
+            'session_telegram_sent': session_telegram_sent,
             'debug_summary': payload.get('debug_summary', 'none'),
             'symbols': symbols_info,
         }
@@ -130,6 +159,12 @@ def main() -> int:
                 open_positions=open_pos,
                 live_actions=live_actions,
                 telegram_sent=telegram_sent,
+                orders_filled=orders_filled_now,
+                orders_rejected=orders_rejected_now,
+                session_signals=session_signals,
+                session_orders_filled=session_orders_filled,
+                session_orders_rejected=session_orders_rejected,
+                session_telegram_sent=session_telegram_sent,
                 debug_summary=heartbeat['debug_summary'],
                 symbols=symbols_info,
                 branch_debugs=branch_debugs,

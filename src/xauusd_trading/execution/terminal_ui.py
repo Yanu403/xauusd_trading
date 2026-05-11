@@ -148,6 +148,12 @@ def format_heartbeat(
     open_positions: int = 0,
     live_actions: int = 0,
     telegram_sent: int = 0,
+    orders_filled: int = 0,
+    orders_rejected: int = 0,
+    session_signals: int | None = None,
+    session_orders_filled: int | None = None,
+    session_orders_rejected: int | None = None,
+    session_telegram_sent: int | None = None,
     debug_summary: str = "",
     symbols: dict[str, dict] | None = None,
     branch_debugs: list[dict] | None = None,
@@ -164,15 +170,28 @@ def format_heartbeat(
     lines.append(f"  {BOLD}🤖 XAUUSD BOT{RESET}  │  iter {BOLD}{iteration}{RESET}  │  {mode_color}{BOLD}{mode}{RESET}  │  {DIM}{timestamp[:19]}{RESET}")
     lines.append(_hr("━"))
 
-    # Summary row
+    # Summary row — per current iteration
     sig_color = G if accepted > 0 else DIM
     pos_color = G if open_positions > 0 else DIM
+    fill_color = G if orders_filled > 0 else DIM
+    reject_color = R if orders_rejected > 0 else DIM
     lines.append(
-        f"  {sig_color}Signals: {accepted}{RESET}  "
-        f"│  {R}Rejected: {rejected}{RESET}  "
+        f"  {sig_color}Signals now: {accepted}{RESET}  "
+        f"│  {fill_color}Filled now: {orders_filled}{RESET}  "
+        f"│  {reject_color}Rejected now: {orders_rejected}{RESET}  "
         f"│  {pos_color}Open: {open_positions}{RESET}  "
-        f"│  📨 Telegram: {telegram_sent}"
+        f"│  📨 TG now: {telegram_sent}"
     )
+
+    # Session cumulative row — since this loop process started
+    if any(v is not None for v in (session_signals, session_orders_filled, session_orders_rejected, session_telegram_sent)):
+        lines.append(
+            f"  {DIM}Session:{RESET} "
+            f"signals={session_signals or 0}  "
+            f"filled={session_orders_filled or 0}  "
+            f"rejected={session_orders_rejected or 0}  "
+            f"telegram={session_telegram_sent or 0}"
+        )
 
     # Balance row (if available)
     if balance is not None:
