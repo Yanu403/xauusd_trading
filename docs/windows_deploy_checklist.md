@@ -1,25 +1,25 @@
 # Windows RDP Deploy Checklist
 
-Tujuan dokumen ini: bikin deploy MT5 runtime jadi **plug and play** semaksimal mungkin.
+The purpose of this document is to make MT5 runtime deployment as **plug and play** as possible.
 
-## 1. Install dasar di Windows RDP
+## 1. Basic Installation on Windows RDP
 
 - Install **Python 3.11+**
 - Install **MetaTrader 5 terminal**
-- Login ke account broker di terminal MT5
-- Pastikan symbol yang dipakai memang tersedia, misalnya `XAUUSD` atau `XAUUSDm`
+- Log in to your broker account in the MT5 terminal
+- Ensure the symbol you intend to use is available, e.g. `XAUUSD` or `XAUUSDm`
 
-## 2. Siapkan project
+## 2. Prepare the Project
 
-Copy folder `projects/xauusd_trading/` ke Windows RDP.
+Copy the `projects/xauusd_trading/` folder to Windows RDP.
 
-Kalau mau jalur paling praktis, langsung pakai juga:
+For the most convenient path, also use these files directly:
 - `windows_setup_venv.bat`
 - `windows_run_dry_loop.bat`
 - `windows_run_live_loop.bat`
 - `runtime/paper_trade_config.windows.sample.json`
 
-Struktur minimal yang harus ada:
+The minimum required structure:
 
 ```text
 xauusd_trading/
@@ -33,31 +33,31 @@ xauusd_trading/
 └── src/
 ```
 
-## 3. Install dependencies Python
+## 3. Install Python Dependencies
 
-Disarankan install ini di virtual environment:
+It is recommended to install these in a virtual environment:
 
 ```bash
 pip install pandas numpy MetaTrader5
 ```
 
-## 4. Isi config runtime lokal
+## 4. Fill in Local Runtime Config
 
-Edit file:
+Edit the file:
 
 `runtime/paper_trade_config.json`
 
-Cara tercepat:
-1. copy `runtime/paper_trade_config.windows.sample.json`
-2. rename jadi `runtime/paper_trade_config.json`
-3. isi credential real
+The fastest approach:
+1. Copy `runtime/paper_trade_config.windows.sample.json`
+2. Rename to `runtime/paper_trade_config.json`
+3. Fill in real credentials
 
-Pastikan section berikut benar:
+Ensure the following sections are correct:
 
 - `telegram.bot_token`
 - `telegram.chat_id`
-- `telegram.insecure_ssl` bila environment Windows bermasalah di SSL Telegram
-- `telegram.alert_all_decisions` jika kamu memang ingin semua decision, termasuk `HOLD`, ikut dikirim
+- `telegram.insecure_ssl` if the Windows environment has issues with Telegram SSL
+- `telegram.alert_all_decisions` if you want all decisions, including `HOLD`, to be sent
 - `mt5.symbol`
 - `mt5.timeframe`
 - `mt5.terminal_path`
@@ -68,88 +68,88 @@ Pastikan section berikut benar:
 - `execution.min_lot`
 - `execution.max_lot`
 
-## 5. Test bertahap, jangan lompat ke live
+## 5. Test Incrementally — Do Not Jump to Live
 
-### Step A, cek help
+### Step A: Check Help
 
 ```bash
 python run_mt5_execution.py --help
 ```
 
-### Step B, dry-run execution
+### Step B: Dry-run Execution
 
 ```bash
 python run_mt5_execution.py --json
 ```
 
-Yang dicek:
-- MT5 bisa connect
-- data bisa diambil
-- signal bisa dihitung
-- decision keluar normal
-- tidak ada traceback
+What to verify:
+- MT5 can connect
+- Data can be fetched
+- Signals can be calculated
+- Decisions are generated normally
+- No tracebacks
 
-### Step C, dry-run berkala
+### Step C: Periodic Dry-run
 
-Gunakan runtime MT5 paper loop untuk lihat alur berulang.
+Use the MT5 paper trade loop to observe the repeating workflow.
 
-### Step D, execution loop dry-run
+### Step D: Execution Loop Dry-run
 
 ```bash
 python run_mt5_execution_loop.py --interval-seconds 300 --json
 ```
 
-### Step E, baru live sangat hati-hati
+### Step E: Live — Very Carefully
 
 ```bash
 python run_mt5_execution.py --allow-live-send --send-telegram-alerts --json
 ```
 
-Atau untuk mode jalan terus:
+Or for continuous mode:
 
 ```bash
 python run_mt5_execution_loop.py --interval-seconds 300 --allow-live-send --send-telegram-alerts
 ```
 
-## 6. File runtime penting
+## 6. Important Runtime Files
 
 - `runtime/paper_trade_config.json`
 - `runtime/mt5_execution_state.json`
 - `runtime/*.jsonl`
 
-### Kenapa `mt5_execution_state.json` penting
+### Why `mt5_execution_state.json` Is Important
 
-File ini menyimpan state live management seperti:
-- partial close sudah pernah dilakukan atau belum
-- sync SL/TP terakhir
+This file stores live management state such as:
+- whether partial close has already been performed
+- last SL/TP sync
 
-Tanpa file ini, bot bisa lebih mudah mengulang aksi management setelah restart.
+Without this file, the bot is more likely to repeat management actions after a restart.
 
-## 7. Rekomendasi mode jalan awal
+## 7. Recommended Startup Sequence
 
-Urutan paling aman:
+The safest order:
 1. `run_paper_trade_mt5.py`
 2. `run_paper_trade_mt5_loop.py`
-3. `run_mt5_execution.py` tanpa `--allow-live-send`
-4. `run_mt5_execution_loop.py` tanpa `--allow-live-send`
-5. `run_mt5_execution.py` atau `run_mt5_execution_loop.py` dengan `--allow-live-send`
+3. `run_mt5_execution.py` without `--allow-live-send`
+4. `run_mt5_execution_loop.py` without `--allow-live-send`
+5. `run_mt5_execution.py` or `run_mt5_execution_loop.py` with `--allow-live-send`
 
-## 8. Sebelum live pertama
+## 8. Before Going Live for the First Time
 
-Checklist final:
-- [ ] Symbol broker sudah benar
-- [ ] Lot step cocok dengan broker
-- [ ] Account yang dipakai memang account yang benar
-- [ ] Telegram alert masuk normal
-- [ ] Dry-run decision terlihat masuk akal
-- [ ] MT5 terminal stabil dan tidak minta login ulang
-- [ ] VPS/RDP timezone dipahami dengan benar
-- [ ] State file runtime tidak ikut sinkronisasi aneh atau tertimpa
+Final checklist:
+- [ ] Broker symbol is correct
+- [ ] Lot step matches the broker
+- [ ] The account being used is the correct one
+- [ ] Telegram alerts are arriving normally
+- [ ] Dry-run decisions look reasonable
+- [ ] MT5 terminal is stable and not requesting re-login
+- [ ] VPS/RDP timezone is properly understood
+- [ ] Runtime state file is not subject to unexpected sync or overwriting
 
-## 9. Catatan jujur
+## 9. Honest Notes
 
-Runtime ini sudah cukup kuat untuk validasi serius, tapi belum final sempurna.
-Yang masih perlu diawasi ketat saat awal live:
-- multi-position edge case
-- repeated management setelah kondisi broker berubah cepat
-- trailing/partial lifecycle yang lebih kompleks
+This runtime is robust enough for serious validation, but it is not yet a final, polished product.
+Areas that require close monitoring during early live trading:
+- multi-position edge cases
+- repeated management actions after rapid broker condition changes
+- more complex trailing/partial lifecycle handling
