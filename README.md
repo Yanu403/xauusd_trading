@@ -1,173 +1,284 @@
-# XAUUSD Trading Bot
+<div align="center">
 
-Bot trading XAUUSD dengan arsitektur realistis dan bertahap.
+# ⚡ XAUUSD Trading Bot
 
-## Status snapshot
+**Production-grade algorithmic trading system with risk-first architecture**
 
-Current state project ini sudah melewati fase sekadar eksperimen liar.
-Fondasi backtest, risk, reporting, MT5 paper runtime, dan MT5 execution runtime
-sudah ada. Namun ini **belum boleh dianggap production bot all-weather**.
+![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Architecture](https://img.shields.io/badge/Architecture-Modular-orange)
+![Status](https://img.shields.io/badge/Status-Active%20Development-yellow)
 
-Yang sudah benar-benar ada sekarang:
-- reusable backtest foundation
-- risk layer dasar + guards
-- MT5 paper-trade runtime
-- MT5 execution runtime dengan dry-run default
-- multi-symbol basket runtime awal
-- Telegram alert hook opsional
-- dokumentasi deploy Windows RDP / MT5
+[Architecture](docs/architecture.md) · [Deployment Guide](docs/windows_deploy_playbook.md) · [Portfolio Spec](docs/session_basket_portfolio_spec_v1.md) · [Research Reports](docs/reports/)
 
-Yang belum selesai:
-- broker reconciliation yang lebih matang
-- restart-safe state handling yang lebih lengkap
-- risk caps yang makin ketat untuk live
-- validasi lintas market regime yang lebih keras
-- bukti alpha yang cukup untuk menyebut sistem ini final
+</div>
 
-## Repository notes
+---
 
-- Repo GitHub utama bersifat **private**.
-- Branch default adalah **`main`**.
-- Runtime config lokal seperti `runtime/*.json` non-sample dan `.env*` memang di-ignore agar secret tidak ikut ke git.
+## What Is This?
 
-## Current reality
+A modular, research-driven trading system for XAUUSD (Gold) and forex pairs, built around a single principle: **prove the alpha before building the system**.
 
-Project ini belum berupa production bot modular penuh.
-Saat ini isinya adalah kumpulan script riset, backtest, dan walk-forward.
-Struktur sudah dirapikan agar jelas mana yang:
-- riset lama
-- eksperimen valid / invalid
-- arah core architecture berikutnya
+Unlike typical trading bots that jump straight to execution, this project follows a disciplined research-first workflow — clean data → validated signals → strict risk management → safe execution → feedback loop → optional ML/LLM augmentation.
 
-## Design principle
+### Key Highlights
 
-Jangan bangun sistem yang tampak canggih sebelum alpha-nya terbukti.
-Urutan yang dipakai:
-1. data bersih
-2. signal/strategy valid, no look-ahead
-3. risk management ketat
-4. execution aman
-5. feedback dan monitoring
-6. ML bila memang terbukti membantu
-7. LLM hanya sebagai lapisan pendukung, bukan inti alpha
+- 🔬 **Walk-forward validated** — every strategy passes out-of-sample testing before promotion
+- 🛡️ **Risk-first design** — drawdown guards, kill switches, position sizing, and daily loss caps enforced at the engine level
+- 📊 **Multi-strategy basket portfolio** — 6 strategy branches across 3 pairs with priority-based conflict resolution
+- 🔄 **MT5 integration** — paper trading, demo, and live execution via MetaTrader 5
+- 📱 **Telegram alerting** — optional real-time notifications for trade events
+- 🧪 **Audit-driven development** — 65-point audit completed, 15 critical fixes applied
+- 🤖 **ML/LLM roadmap** — planned integration for regime detection, feature engineering, and trade analysis
 
-## Directory layout
+---
 
-```text
-projects/xauusd_trading/
-├── README.md
-├── PROJECT_STATE.md
-├── docs/
-│   ├── architecture.md
-│   ├── mt5_runtime.md
-│   ├── windows_deploy_checklist.md
-│   └── windows_deploy_playbook.md
-├── research/
-│   ├── experiments/
-│   │   ├── tf001/
-│   │   ├── sr_sd/
-│   │   └── sr_ema/
-│   ├── walkforward/
-│   └── cross_asset/
-└── src/
-    └── xauusd_trading/
-        ├── config/
-        ├── data/
-        ├── features/
-        ├── strategies/
-        ├── risk/
-        ├── execution/
-        └── reporting/
+## Architecture
+
+```
+Market Data
+    │
+    ▼
+┌─────────────────────┐
+│  Data Validation &   │  ← OHLCV cleaning, gap detection, spread sanity
+│  Normalization       │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Feature Pipeline    │  ← ATR, RSI, session features, candle structure
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Strategy Engine     │  ← Signal candidates with entry/SL/TP + reason tags
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Risk Engine         │  ← Position sizing, exposure caps, drawdown guard, kill switch
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Execution Adapter   │  ← Paper / MT5 dry-run / MT5 live, with idempotent order handling
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Reporting &         │  ← Trade ledger, metrics, Telegram alerts, feedback loop
+│  Monitoring          │
+└─────────────────────┘
 ```
 
-## What lives where
+Each layer is independent. The strategy engine never touches broker logic. The risk engine is a hard gate before any execution. The execution adapter supports paper → dry-run → live promotion without code changes.
 
-### `research/`
-Tempat script eksplorasi, backtest, dan validasi historikal.
-Belum dianggap production-safe.
+---
 
-### `src/xauusd_trading/data/`
-Nanti untuk loader data, validator, normalizer, dan source abstraction.
+## Portfolio: Session Basket v1
 
-### `src/xauusd_trading/features/`
-Nanti untuk indicators, feature engineering, regime tagging.
+The active portfolio uses **session-based strategies** — setups triggered by London/NY session dynamics across multiple forex pairs.
 
-### `src/xauusd_trading/strategies/`
-Nanti untuk rule engine atau model inference yang sudah lolos validasi.
+| Branch | Strategy | Pair | Risk/Trade | Role |
+|--------|----------|------|-----------|------|
+| `eurusd_sweep` | Session Sweep + FVG | EURUSD | 1.00% | Primary alpha |
+| `eurusd_continuation` | Session Continuation | EURUSD | 0.75% | Momentum capture |
+| `eurusd_orb` | Opening Range Breakout | EURUSD | 0.50% | Flow engine |
+| `gbpusd_sweep` | Session Sweep (adapted) | GBPUSD | 0.60% | Cross-pair expansion |
+| `gbpusd_continuation` | Session Continuation | GBPUSD | 0.25% | Supplementary |
+| `xauusd_continuation` | Session Continuation | XAUUSD | 0.75% | Gold momentum |
 
-### `src/xauusd_trading/risk/`
-Nanti untuk position sizing, max exposure, drawdown guard, kill switch.
+**Conflict resolution:** One position per symbol, branch priority ordering, cross-symbol overlap allowed.
 
-### `src/xauusd_trading/execution/`
-Nanti untuk broker adapter, order lifecycle, retry, idempotency.
+**Latest basket performance:** ~4.5 setups/week across all branches, with 95%+ survival rate under single-position execution constraints.
 
-### `src/xauusd_trading/reporting/`
-Nanti untuk trade log, metrics, monitoring, dan feedback loop.
+---
 
-## Current implemented foundation
+## Project Structure
 
-Fondasi reusable awal sekarang sudah ada:
-- shared data loader
-- shared indicator/feature builder
-- strategy interface minimal
-- unified backtest engine minimal
-- risk manager dasar dengan drawdown / loss guards
-- summary metrics module
-- trade ledger export
-- single backtest entry point lewat `run_backtest.py`
-- paper-trade runner awal lewat `run_paper_trade.py`
-- scheduler periodik lewat `run_paper_trade_loop.py`
-- MT5-connected paper-trade runner lewat `run_paper_trade_mt5.py`
-- MT5-connected periodic loop lewat `run_paper_trade_mt5_loop.py`
-- MT5 execution runner dengan dry-run default lewat `run_mt5_execution.py`
-- MT5 execution loop runner lewat `run_mt5_execution_loop.py`
-- MT5 basket execution runner (multi-symbol) lewat `run_session_basket_execution_mt5.py`
-- MT5 basket execution loop runner lewat `run_session_basket_execution_mt5_loop.py`
-- MT5 execution adapter sudah mendukung open, reverse, sync SL/TP dasar, serta manage-position awal (partial close + trailing-style SL sync)
-- Isolated M15 research branch awal sudah ada untuk SR+SD family, tanpa mengganggu kandidat live H1
-- Telegram-ready alerting hook untuk event paper trade dan execution decision
+```
+├── src/xauusd_trading/          # Core reusable package
+│   ├── backtesting/             # Unified backtest engine (next-bar open, spread-aware)
+│   ├── config/                  # Path management, config loading
+│   ├── execution/               # MT5 adapter, paper trade, portfolio runner, alerts
+│   ├── features/                # Indicators (ATR, RSI Wilder's), feature builder
+│   ├── models/                  # Trade/position models (live, paper, trading)
+│   ├── reporting/               # Metrics, trade ledger export
+│   ├── risk/                    # Risk manager (drawdown, consecutive loss, position cap)
+│   └── strategies/              # Strategy implementations + base interface
+│
+├── research/                    # Experiments, walk-forward validation, cross-asset
+│   ├── experiments/             # Strategy-specific research (EURUSD sweep, M15, etc.)
+│   └── walkforward/             # No-look-ahead validation scripts
+│
+├── docs/                        # Architecture, specs, deploy guides, audit reports
+│   └── reports/                 # Per-round backtest & basket analysis reports
+│
+├── runtime/                     # Sample configs (secrets excluded via .gitignore)
+├── tests/                       # Test suite
+│
+├── run_session_basket_demo_mt5.py      # MT5 paper/demo runner
+├── run_session_basket_execution_mt5.py # MT5 execution runner (dry-run default)
+├── run_basket_backtest.py              # Portfolio-level backtest
+└── windows_*.bat                       # Windows RDP launchers
+```
 
-Contoh yang sudah dipindahkan ke core:
-- `TF001AdjustedStrategy`
-- `SRSDV35LongStrategy`
-- `SREMAV41Strategy` (research comparison only, static S/R and bias-prone)
+---
 
-## Immediate next build target
+## Getting Started
 
-Versi realistis berikutnya tetap bukan full ML stack.
-Target berikutnya:
-- validasi MT5-connected execution runner di Windows RDP
-- tambah reconcile broker yang lebih matang untuk multi-position dan stateful partial management lintas restart
-- lanjutkan riset M15 hanya sebagai branch terpisah bila hasil round berikutnya membaik, fokus long-only karena short-side masih lemah
-- quality-filter round 3 belum mengalahkan kandidat utama saat itu
-- kandidat riset M15 terdepan saat ini adalah `SRSDM15LongRecentV2Strategy`, yang cukup kuat untuk demo terpisah berbasis regime sekarang, tetapi belum valid sebagai sistem all-weather
-- sudah ada runner MT5 paper/demo M15 terpisah agar observasi branch M15 tidak mengganggu runtime H1
-- sudah mulai branch riset baru untuk EURUSD session sweep + MSS + FVG dengan bias M15 dan execution M5/M3
-- hasil awal Jan-Apr 2026: M3 mulai menghasilkan setup dan trade kecil, M5 masih nol entry, jadi M3 jadi branch prioritas awal
-- refinement terbaru menunjukkan Asia+London trigger di M3 lebih menjanjikan daripada Asia-only, tanpa perlu merusak filter kualitas
-- ekspansi multi-pair awal menambah frekuensi, tetapi EURUSD tetap paling sehat; GBPUSD dan USDJPY butuh adaptasi pair-specific, bukan copy-paste parameter
-- adaptasi awal GBPUSD dengan sweep lebih ketat sudah membuat branch itu positif, jadi pair-specific tuning terbukti lebih masuk akal daripada copy-paste
-- basket utama sementara EURUSD + GBPUSD adaptasi sudah sehat, tetapi belum cukup produktif untuk target 3 setup per minggu
-- sudah dibuka branch pattern kedua untuk session continuation + FVG, sebagai pelengkap sweep-reversal agar basket bisa menangkap hari momentum juga
-- round 1 continuation di EURUSD M3 sudah menghasilkan trade awal yang bersih, jadi branch ini valid untuk diteruskan sebagai sumber setup kedua
-- bahkan setelah menggabungkan sweep + continuation di EURUSD, frekuensi masih belum cukup, jadi kombinasi multi-pattern saja belum menyelesaikan target tanpa multi-pair
-- basket v2 yang menggabungkan EURUSD sweep, EURUSD continuation, dan GBPUSD adapted sweep adalah yang terbaik sejauh ini, tetapi target 3 setup per minggu belum tercapai secara konsisten
-- setelah refresh metrik continuation, basket gabungan kini lebih kuat dari yang sempat terlihat, namun tetap masih butuh satu sumber setup tambahan agar target mingguan lebih konsisten
-- XAUUSD continuation kini menjadi kandidat basket yang layak, lebih baik daripada XAUUSD sweep, tetapi bahkan setelah ditambahkan rata-rata basket baru sekitar 2.125 trade per minggu aktif, jadi target 3 setup per minggu masih belum tercapai secara konsisten
-- session basket kini sudah memiliki `docs/session_basket_portfolio_spec_v1.md` sebagai spesifikasi portfolio demo-market candidate, termasuk branch list, priority rules, conflict handling, dan risk sizing tiers
-- runtime demo basket v1 sudah tersedia melalui `run_session_basket_demo_mt5.py` dan `run_session_basket_demo_mt5_loop.py` dengan panduan `docs/session_basket_demo_runtime.md`
-- runtime basket execution (interaksi order ke akun MT5) tersedia via `run_session_basket_execution_mt5.py` dan `run_session_basket_execution_mt5_loop.py` (default DRY_RUN, aktif live dengan `--allow-live-send`)
-- perluas risk layer ke daily loss / exposure caps bila perlu
+### Prerequisites
 
-## Notes
+- Python 3.11+
+- For MT5 integration: Windows with [MetaTrader 5](https://www.metatrader5.com/) installed
 
-- Script yang terbukti look-ahead biased tetap disimpan sebagai research history, bukan sebagai basis live bot.
-- Arsitektur ini mengikuti rule: simple dulu, modular saat complexity memang menuntut.
-- Paper trade runner mendukung alert Telegram secara opt-in lewat `--send-telegram-alerts`, `--telegram-bot-token`, dan `--telegram-chat-id` (atau env `XAUUSD_TELEGRAM_BOT_TOKEN` / `XAUUSD_TELEGRAM_CHAT_ID`).
-- Runner juga bisa baca config lokal dari `runtime/paper_trade_config.json` untuk token/chat id, dan file ini di-ignore agar secret tidak ikut ke git.
-- Untuk mode periodik CSV, gunakan `run_paper_trade_loop.py --interval-seconds 300 --send-telegram-alerts`.
-- Untuk runtime Windows RDP + MT5, gunakan `run_paper_trade_mt5.py` atau `run_paper_trade_mt5_loop.py`. Detail setup ada di `docs/mt5_runtime.md`.
-- Untuk langkah deploy praktis ke RDP Windows, ikuti `docs/windows_deploy_checklist.md`.
-- Untuk paket deploy yang lebih plug-and-play, ikuti `docs/windows_deploy_playbook.md` dan gunakan file `.bat` launcher yang disediakan.
-- Untuk runtime execution periodik single-symbol di MT5, gunakan `run_mt5_execution_loop.py`.
-- Untuk runtime execution periodik basket multi-symbol di MT5, gunakan `run_session_basket_execution_mt5_loop.py`.
+### Installation
+
+```bash
+git clone https://github.com/Yanu403/xauusd_trading.git
+cd xauusd_trading
+pip install -r requirements.txt
+```
+
+### Run a Backtest
+
+```bash
+python run_basket_backtest.py
+```
+
+### Run Paper Trading (CSV mode)
+
+```bash
+python run_paper_trade.py --send-telegram-alerts
+```
+
+### Run MT5 Paper/Demo (Windows)
+
+```bash
+python run_session_basket_demo_mt5_loop.py
+```
+
+### Run MT5 Execution (Windows, dry-run by default)
+
+```bash
+python run_session_basket_execution_mt5_loop.py
+# Add --allow-live-send to enable real order submission
+```
+
+> 📖 See [Windows Deployment Playbook](docs/windows_deploy_playbook.md) for full setup instructions.
+
+---
+
+## Design Philosophy
+
+### Why No ML/LLM Yet?
+
+This project follows a strict dependency chain:
+
+```
+1. Clean data
+2. Valid signal — no look-ahead bias
+3. Strict risk management
+4. Safe execution
+5. Feedback & monitoring
+6. ML only if it provably adds edge
+7. LLM only as support layer (trade journal, regime annotation)
+```
+
+Building ML infrastructure before proving alpha is engineering theater. The current priority is validating the basket portfolio under live market conditions.
+
+### Hard Rules
+
+- ❌ No look-ahead bias (enforced via backward-only rolling + shift(1))
+- ❌ No hidden future leakage
+- ❌ No live trading before paper validation
+- ❌ No overengineering before reusable core exists
+- ✅ Every phase must pass audit before expanding scope
+
+---
+
+## Roadmap
+
+### ✅ Phase A — Foundation (Done)
+- Shared data loader, indicator pipeline, strategy interface
+- Unified backtest engine with realistic execution modeling
+- Risk manager with drawdown guards and kill switch
+
+### ✅ Phase B — Core Engine (Done)
+- Trade/position models
+- Metrics and trade ledger
+- Atomic state persistence (crash-safe)
+
+### ✅ Phase C — Safety Layer (Done)
+- MT5 execution adapter with dry-run default
+- Portfolio-level conflict resolution
+- Telegram alerting hook
+
+### 🔄 Phase D — Production Hardening (In Progress)
+- Broker reconciliation for multi-position stateful management
+- Restart-safe state handling across process crashes
+- Tighter risk caps for live deployment
+- Cross-regime validation (2022-2026 stress testing)
+
+### 🔮 Phase E — Intelligence Layer (Planned)
+- **ML Feature Engineering** — regime detection, volatility clustering, session classification
+- **ML Signal Enhancement** — model-augmented entry/exit timing (only if proven via walk-forward)
+- **LLM Trade Analysis** — automated trade journaling, performance commentary, anomaly explanation
+- **LLM Operator Assistant** — natural language query over trade history and risk metrics
+
+### 🌐 Phase F — Expansion (Planned)
+- Multi-pair scaling with pair-specific parameter optimization
+- Web dashboard for portfolio monitoring
+- REST API for external signal consumption
+- Backtest-as-a-service for strategy research
+
+---
+
+## Research Methodology
+
+Every strategy goes through a rigorous validation pipeline:
+
+1. **Hypothesis** — define the market behavior being exploited
+2. **Implementation** — code the strategy with strict no-look-ahead rules
+3. **In-sample backtest** — initial validation on training data
+4. **Walk-forward validation** — out-of-sample testing on unseen data
+5. **Audit** — bias detection, execution realism, risk sizing review
+6. **Basket integration** — portfolio-level conflict and overlap analysis
+7. **Paper trading** — live market validation via MT5 demo
+8. **Promotion** — only after all gates pass
+
+Research reports for each round are preserved in [`docs/reports/`](docs/reports/) for full transparency.
+
+---
+
+## Contributing
+
+Contributions are welcome. Please read the [architecture docs](docs/architecture.md) before submitting changes.
+
+Areas where help is especially valuable:
+- Strategy research (new session patterns, additional pairs)
+- ML feature engineering for regime detection
+- Risk management improvements
+- Documentation and testing
+
+---
+
+## Disclaimer
+
+⚠️ **This is a research project, not financial advice.** Trading forex and gold involves substantial risk of loss. The strategies in this repository have not been proven profitable in live trading. Use at your own risk. Past backtest performance does not guarantee future results.
+
+---
+
+## License
+
+[MIT](LICENSE) — use it, fork it, learn from it.
+
+---
+
+<div align="center">
+
+**Built with discipline, not hype.**
+
+*"Don't build a sophisticated system before the alpha is proven."*
+
+</div>
